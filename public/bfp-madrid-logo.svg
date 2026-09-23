@@ -1,0 +1,341 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="100%" height="100%">
+  <defs>
+    <!-- Gradients & Filters -->
+    <radialGradient id="goldGrad" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#fffbeb" />
+      <stop offset="30%" stop-color="#fde047" />
+      <stop offset="70%" stop-color="#d97706" />
+      <stop offset="100%" stop-color="#78350f" />
+    </radialGradient>
+    
+    <radialGradient id="redBadgeGrad" cx="40%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#ef4444" />
+      <stop offset="45%" stop-color="#dc2626" />
+      <stop offset="90%" stop-color="#991b1b" />
+      <stop offset="100%" stop-color="#7f1d1d" />
+    </radialGradient>
+
+    <linearGradient id="axeHeadGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f87171" />
+      <stop offset="40%" stop-color="#dc2626" />
+      <stop offset="90%" stop-color="#991b1b" />
+    </linearGradient>
+
+    <linearGradient id="bladeGrad" x1="0%" y1="0%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="60%" stop-color="#cbd5e1" />
+      <stop offset="100%" stop-color="#64748b" />
+    </linearGradient>
+
+    <linearGradient id="handleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="40%" stop-color="#eab308" />
+      <stop offset="80%" stop-color="#ca8a04" />
+      <stop offset="100%" stop-color="#854d0e" />
+    </linearGradient>
+
+    <linearGradient id="skyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#bae6fd" />
+      <stop offset="100%" stop-color="#f0f9ff" />
+    </linearGradient>
+
+    <filter id="badgeShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#000000" flood-opacity="0.55" />
+    </filter>
+
+    <filter id="textGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="1" dy="2" stdDeviation="1.5" flood-color="#7f1d1d" flood-opacity="0.9" />
+    </filter>
+
+    <!-- Curved Text Paths -->
+    <!-- Top Arc for MADRID FIRE STATION -->
+    <path id="topTextArc" d="M 95,300 A 205,205 0 0,1 505,300" fill="none" />
+    <!-- Bottom Arc for Bureau of Fire Protection -->
+    <path id="bottomTextArc" d="M 500,300 A 200,200 0 0,1 100,300" fill="none" />
+    <!-- Inner Cross Arcs -->
+    <path id="crossSaveLivesArc" d="M 230,225 A 72,72 0 0,1 370,225" fill="none" />
+    <path id="crossPropertiesArc" d="M 375,372 A 78,78 0 0,1 225,372" fill="none" />
+  </defs>
+
+  <!-- ==================== CROSSED FIRE AXES ==================== -->
+  <!-- Axe 1: Top-Left to Bottom-Right -->
+  <g transform="rotate(-45 300 300)">
+    <!-- Wooden Handle -->
+    <rect x="290" y="45" width="20" height="510" rx="6" fill="url(#handleGrad)" stroke="#78350f" stroke-width="2" />
+    <!-- Black Rubber Grip at bottom -->
+    <rect x="288" y="380" width="24" height="160" rx="5" fill="#1e293b" stroke="#0f172a" stroke-width="2" />
+    <line x1="288" y1="410" x2="312" y2="410" stroke="#475569" stroke-width="2" />
+    <line x1="288" y1="440" x2="312" y2="440" stroke="#475569" stroke-width="2" />
+    <line x1="288" y1="470" x2="312" y2="470" stroke="#475569" stroke-width="2" />
+    <line x1="288" y1="500" x2="312" y2="500" stroke="#475569" stroke-width="2" />
+    <!-- Pommel cap -->
+    <ellipse cx="300" cy="545" rx="14" ry="7" fill="url(#bladeGrad)" stroke="#334155" stroke-width="2" />
+
+    <!-- Axe Head -->
+    <g transform="translate(300, 75)" filter="url(#badgeShadow)">
+      <!-- Main red axe head block -->
+      <path d="M -22,-20 L 22,-20 L 25,35 L -25,35 Z" fill="#94a3b8" stroke="#334155" stroke-width="2" />
+      <!-- Axe cutting blade (left) -->
+      <path d="M -15,-15 C -45,-20 -95,-45 -125,-40 C -132,10 -130,45 -122,85 C -95,75 -45,45 -15,35 Z" fill="url(#axeHeadGrad)" stroke="#7f1d1d" stroke-width="2" />
+      <!-- Polished cutting edge -->
+      <path d="M -115,-38 C -122,-37 -125,-35 -125,-40 C -132,10 -130,45 -122,85 C -120,80 -115,77 -114,75 C -121,40 -122,10 -115,-38 Z" fill="url(#bladeGrad)" stroke="#94a3b8" stroke-width="1.5" />
+      <!-- Rear Pick Spike (right) -->
+      <path d="M 15,-10 L 80,-5 C 88,-3 88,5 80,7 L 15,25 Z" fill="url(#axeHeadGrad)" stroke="#7f1d1d" stroke-width="2" />
+      <path d="M 65,-4 L 80,-5 C 88,-3 88,5 80,7 L 65,18 Z" fill="url(#bladeGrad)" />
+      <!-- Silver Collar -->
+      <rect x="-24" y="-2" width="48" height="16" fill="url(#bladeGrad)" stroke="#475569" stroke-width="1.5" />
+    </g>
+  </g>
+
+  <!-- Axe 2: Top-Right to Bottom-Left -->
+  <g transform="rotate(45 300 300)">
+    <!-- Wooden Handle -->
+    <rect x="290" y="45" width="20" height="510" rx="6" fill="url(#handleGrad)" stroke="#78350f" stroke-width="2" />
+    <!-- Black Rubber Grip at bottom -->
+    <rect x="288" y="380" width="24" height="160" rx="5" fill="#1e293b" stroke="#0f172a" stroke-width="2" />
+    <line x1="288" y1="410" x2="312" y2="410" stroke="#475569" stroke-width="2" />
+    <line x1="288" y1="440" x2="312" y2="440" stroke="#475569" stroke-width="2" />
+    <line x1="288" y1="470" x2="312" y2="470" stroke="#475569" stroke-width="2" />
+    <line x1="288" y1="500" x2="312" y2="500" stroke="#475569" stroke-width="2" />
+    <!-- Pommel cap -->
+    <ellipse cx="300" cy="545" rx="14" ry="7" fill="url(#bladeGrad)" stroke="#334155" stroke-width="2" />
+
+    <!-- Axe Head -->
+    <g transform="translate(300, 75)" filter="url(#badgeShadow)">
+      <path d="M -22,-20 L 22,-20 L 25,35 L -25,35 Z" fill="#94a3b8" stroke="#334155" stroke-width="2" />
+      <!-- Axe cutting blade (right side in rotated view) -->
+      <path d="M 15,-15 C 45,-20 95,-45 125,-40 C 132,10 130,45 122,85 C 95,75 45,45 15,35 Z" fill="url(#axeHeadGrad)" stroke="#7f1d1d" stroke-width="2" />
+      <!-- Polished cutting edge -->
+      <path d="M 115,-38 C 122,-37 125,-35 125,-40 C 132,10 130,45 122,85 C 120,80 115,77 114,75 C 121,40 122,10 115,-38 Z" fill="url(#bladeGrad)" stroke="#94a3b8" stroke-width="1.5" />
+      <!-- Rear Pick Spike (left) -->
+      <path d="M -15,-10 L -80,-5 C -88,-3 -88,5 -80,7 L -15,25 Z" fill="url(#axeHeadGrad)" stroke="#7f1d1d" stroke-width="2" />
+      <path d="M -65,-4 L -80,-5 C -88,-3 -88,5 -80,7 L -65,18 Z" fill="url(#bladeGrad)" />
+      <!-- Silver Collar -->
+      <rect x="-24" y="-2" width="48" height="16" fill="url(#bladeGrad)" stroke="#475569" stroke-width="1.5" />
+    </g>
+  </g>
+
+  <!-- ==================== MAIN CIRCULAR SHIELD BADGE ==================== -->
+  <g filter="url(#badgeShadow)">
+    <!-- Outer Golden Rope Edge -->
+    <circle cx="300" cy="300" r="235" fill="none" stroke="url(#goldGrad)" stroke-width="14" stroke-dasharray="8 4" />
+    <circle cx="300" cy="300" r="240" fill="none" stroke="#b45309" stroke-width="3" />
+    <circle cx="300" cy="300" r="228" fill="none" stroke="#78350f" stroke-width="2" />
+
+    <!-- Outer White Ring -->
+    <circle cx="300" cy="300" r="226" fill="#ffffff" stroke="#e2e8f0" stroke-width="1" />
+    <!-- Inner border of White Ring -->
+    <circle cx="300" cy="300" r="172" fill="none" stroke="url(#goldGrad)" stroke-width="6" />
+    <circle cx="300" cy="300" r="170" fill="none" stroke="#92400e" stroke-width="2" />
+
+    <!-- Arched Text: MADRID FIRE STATION -->
+    <text font-family="system-ui, -apple-system, 'Impact', 'Segoe UI', Arial, sans-serif" font-weight="900" font-size="34" fill="#dc2626" letter-spacing="3" filter="url(#textGlow)">
+      <textPath href="#topTextArc" startOffset="50%" text-anchor="middle">
+        MADRID FIRE STATION
+      </textPath>
+    </text>
+
+    <!-- Arched Text: Bureau of Fire Protection -->
+    <text font-family="system-ui, -apple-system, 'Impact', 'Segoe UI', Arial, sans-serif" font-weight="900" font-size="28" fill="#dc2626" letter-spacing="2" filter="url(#textGlow)">
+      <textPath href="#bottomTextArc" startOffset="50%" text-anchor="middle">
+        Bureau of Fire Protection
+      </textPath>
+    </text>
+
+    <!-- Flanking Gold Stars on Left and Right -->
+    <!-- Left Star -->
+    <g transform="translate(94, 300) scale(0.95)">
+      <!-- 5-Point Star -->
+      <polygon points="0,-18 5,-5 19,-5 8,4 12,17 0,9 -12,17 -8,4 -19,-5 -5,-5" fill="url(#goldGrad)" stroke="#78350f" stroke-width="1.5" />
+    </g>
+    <!-- Right Star -->
+    <g transform="translate(506, 300) scale(0.95)">
+      <polygon points="0,-18 5,-5 19,-5 8,4 12,17 0,9 -12,17 -8,4 -19,-5 -5,-5" fill="url(#goldGrad)" stroke="#78350f" stroke-width="1.5" />
+    </g>
+
+    <!-- ==================== RED MALTESE / FLORIAN CROSS ==================== -->
+    <g>
+      <!-- Base Cross Shape with flared arms -->
+      <!-- Maltese cross points in 170 radius circle -->
+      <path d="
+        M 265,134 L 300,148 L 335,134 L 322,238 L 362,238 
+        L 466,265 L 452,300 L 466,335 L 362,322 L 362,362 
+        L 335,466 L 300,452 L 265,466 L 278,362 L 238,362 
+        L 134,335 L 148,300 L 134,265 L 238,278 L 238,238 Z"
+        fill="url(#redBadgeGrad)" stroke="url(#goldGrad)" stroke-width="7" stroke-linejoin="round" />
+      <path d="
+        M 265,134 L 300,148 L 335,134 L 322,238 L 362,238 
+        L 466,265 L 452,300 L 466,335 L 362,322 L 362,362 
+        L 335,466 L 300,452 L 265,466 L 278,362 L 238,362 
+        L 134,335 L 148,300 L 134,265 L 238,278 L 238,238 Z"
+        fill="none" stroke="#78350f" stroke-width="2" stroke-linejoin="round" />
+
+      <!-- TOP ARM: SAVE LIVES & FIREFIGHTER SILHOUETTE -->
+      <g>
+        <text font-family="Arial, sans-serif" font-weight="900" font-size="14" fill="#fef08a" letter-spacing="1.5">
+          <textPath href="#crossSaveLivesArc" startOffset="50%" text-anchor="middle">
+            SAVE LIVES
+          </textPath>
+        </text>
+        <!-- Firefighter in bunker gear silhouette -->
+        <g transform="translate(300, 194) scale(0.65)">
+          <!-- Helmet -->
+          <ellipse cx="0" cy="-22" rx="8" ry="6" fill="#1e293b" stroke="#0f172a" stroke-width="1.5" />
+          <path d="M -12,-18 C -10,-24 10,-24 12,-18 C 14,-15 12,-14 0,-14 C -12,-14 -14,-15 -12,-18 Z" fill="#334155" />
+          <!-- Head / Breathing mask -->
+          <circle cx="0" cy="-14" r="5" fill="#0f172a" />
+          <!-- Torso & Turnout Coat -->
+          <path d="M -12,-8 L 12,-8 L 16,16 L -16,16 Z" fill="#0f172a" />
+          <!-- High-vis reflector stripes -->
+          <rect x="-13" y="2" width="26" height="3" fill="#facc15" />
+          <rect x="-15" y="10" width="30" height="3" fill="#facc15" />
+          <!-- Arms holding nozzle -->
+          <path d="M -12,-6 L -20,4 L -8,6" stroke="#0f172a" stroke-width="4" stroke-linecap="round" fill="none" />
+          <path d="M 12,-6 L 16,4 L 0,8" stroke="#0f172a" stroke-width="4" stroke-linecap="round" fill="none" />
+          <!-- Brass Nozzle -->
+          <polygon points="-5,5 8,7 6,10 -7,8" fill="#eab308" />
+          <!-- Spraying water stream -->
+          <path d="M 8,7 Q 24,0 36,-8 M 8,8 Q 28,8 40,6" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.85" />
+          <!-- Legs in bunker gear -->
+          <path d="M -14,16 L -16,34 L -8,34 L -5,16" fill="#1e293b" />
+          <path d="M 14,16 L 16,34 L 8,34 L 5,16" fill="#1e293b" />
+          <!-- Boot reflectors -->
+          <rect x="-15" y="26" width="7" height="2" fill="#facc15" />
+          <rect x="8" y="26" width="7" height="2" fill="#facc15" />
+        </g>
+      </g>
+
+      <!-- LEFT ARM: LADDER & PIKE POLE -->
+      <g transform="translate(196, 300) scale(0.68)">
+        <!-- Silver Ladder -->
+        <g transform="rotate(25)">
+          <line x1="-8" y1="-38" x2="-8" y2="38" stroke="#f1f5f9" stroke-width="3" />
+          <line x1="8" y1="-38" x2="8" y2="38" stroke="#f1f5f9" stroke-width="3" />
+          <line x1="-8" y1="-28" x2="8" y2="-28" stroke="#cbd5e1" stroke-width="2" />
+          <line x1="-8" y1="-14" x2="8" y2="-14" stroke="#cbd5e1" stroke-width="2" />
+          <line x1="-8" y1="0" x2="8" y2="0" stroke="#cbd5e1" stroke-width="2" />
+          <line x1="-8" y1="14" x2="8" y2="14" stroke="#cbd5e1" stroke-width="2" />
+          <line x1="-8" y1="28" x2="8" y2="28" stroke="#cbd5e1" stroke-width="2" />
+        </g>
+        <!-- Crossed Pike Pole / Fire Hook -->
+        <g transform="rotate(-35)">
+          <line x1="0" y1="-44" x2="0" y2="44" stroke="#ca8a04" stroke-width="3.5" />
+          <!-- Steel hook head -->
+          <path d="M 0,-44 L 0,-52 L 4,-50 C 14,-46 16,-38 12,-34 L 8,-36 C 10,-38 8,-44 0,-46" fill="#e2e8f0" stroke="#475569" stroke-width="1.5" />
+        </g>
+      </g>
+
+      <!-- RIGHT ARM: FIRE HYDRANT -->
+      <g transform="translate(404, 300) scale(0.68)">
+        <!-- Hydrant Bonnet / Dome Top -->
+        <path d="M -14,-22 C -14,-34 14,-34 14,-22 Z" fill="#334155" stroke="#0f172a" stroke-width="2" />
+        <rect x="-4" y="-38" width="8" height="6" rx="2" fill="#eab308" stroke="#78350f" stroke-width="1" />
+        <!-- Main Barrel Body -->
+        <rect x="-16" y="-22" width="32" height="46" fill="#1e293b" stroke="#0f172a" stroke-width="2" />
+        <!-- Side Outlets / Caps -->
+        <rect x="-24" y="-12" width="8" height="12" rx="2" fill="#eab308" stroke="#78350f" stroke-width="1" />
+        <rect x="16" y="-12" width="8" height="12" rx="2" fill="#eab308" stroke="#78350f" stroke-width="1" />
+        <!-- Center Pumper Nozzle Cap with chain ring -->
+        <circle cx="0" cy="-6" r="7" fill="#eab308" stroke="#78350f" stroke-width="1.5" />
+        <circle cx="0" cy="-6" r="3" fill="#78350f" />
+        <!-- Lower Base Flange -->
+        <rect x="-22" y="24" width="44" height="8" rx="2" fill="#334155" stroke="#0f172a" stroke-width="2" />
+        <rect x="-26" y="32" width="52" height="6" fill="#0f172a" />
+      </g>
+
+      <!-- BOTTOM ARM: AND PROPERTIES & BOOKS -->
+      <g>
+        <text font-family="Arial, sans-serif" font-weight="900" font-size="13" fill="#fef08a" letter-spacing="1">
+          <textPath href="#crossPropertiesArc" startOffset="50%" text-anchor="middle">
+            AND PROPERTIES
+          </textPath>
+        </text>
+        <!-- Stacked Legal / Code Books -->
+        <g transform="translate(300, 404) scale(0.72)">
+          <!-- Bottom Book -->
+          <polygon points="-24,-4 20,-4 24,6 -20,6" fill="#0284c7" stroke="#075985" stroke-width="1.5" />
+          <path d="M 20,-4 L 24,6 L 20,8 L 16,-2 Z" fill="#f8fafc" />
+          <polygon points="-24,6 20,6 16,14 -28,14" fill="#0369a1" stroke="#075985" stroke-width="1.5" />
+          <!-- Top Book -->
+          <polygon points="-20,-14 22,-14 26,-4 -16,-4" fill="#e11d48" stroke="#9f1239" stroke-width="1.5" />
+          <polygon points="-20,-4 22,-4 18,3 -24,3" fill="#be123c" stroke="#9f1239" stroke-width="1.5" />
+          <!-- Book Ribbon Bookmark in Gold -->
+          <path d="M 0,-14 L 0,8 L 4,5 L 8,8 L 8,-14 Z" fill="#facc15" stroke="#ca8a04" stroke-width="1" />
+        </g>
+      </g>
+    </g>
+
+    <!-- ==================== CENTER CIRCULAR MEDALLION: MADRID AGRICULTURAL SEAL ==================== -->
+    <!-- Gold Medallion Outer Cord -->
+    <circle cx="300" cy="300" r="62" fill="none" stroke="url(#goldGrad)" stroke-width="6" />
+    <circle cx="300" cy="300" r="65" fill="none" stroke="#78350f" stroke-width="2" />
+    <circle cx="300" cy="300" r="59" fill="none" stroke="#92400e" stroke-width="1.5" />
+
+    <!-- Medallion Mask / Clip for Seal Scene -->
+    <g clip-path="url(#centerClip)">
+      <clipPath id="centerClip">
+        <circle cx="300" cy="300" r="58" />
+      </clipPath>
+
+      <!-- Sky -->
+      <rect x="235" y="235" width="130" height="130" fill="url(#skyGrad)" />
+      <!-- Fluffy White Clouds -->
+      <ellipse cx="280" cy="265" rx="20" ry="10" fill="#ffffff" opacity="0.9" />
+      <ellipse cx="295" cy="260" rx="16" ry="12" fill="#ffffff" opacity="0.9" />
+      <ellipse cx="320" cy="268" rx="22" ry="9" fill="#ffffff" opacity="0.85" />
+
+      <!-- Mountain Silhouettes in Surigao del Sur -->
+      <polygon points="230,290 265,272 300,288 340,268 375,290" fill="#65a30d" />
+      <polygon points="250,292 285,278 315,292 360,276 375,292" fill="#4d7c0f" opacity="0.9" />
+
+      <!-- Rice Fields / Farmland Rows -->
+      <!-- Golden Brown Soil & Rice Terraces -->
+      <ellipse cx="300" cy="330" rx="65" ry="38" fill="#15803d" />
+      <ellipse cx="300" cy="336" rx="65" ry="30" fill="#ca8a04" />
+      <ellipse cx="300" cy="344" rx="65" ry="24" fill="#854d0e" />
+
+      <!-- Rice Field Furrows -->
+      <path d="M 235,310 Q 300,314 365,310" stroke="#16a34a" stroke-width="2.5" fill="none" />
+      <path d="M 235,320 Q 300,325 365,320" stroke="#15803d" stroke-width="2.5" fill="none" />
+      <path d="M 235,330 Q 300,336 365,330" stroke="#a16207" stroke-width="2" fill="none" />
+
+      <!-- Farmer & Carabao (Water Buffalo) Plowing Scene -->
+      <g transform="translate(294, 320) scale(0.68)">
+        <!-- Carabao (Water Buffalo) -->
+        <!-- Body -->
+        <ellipse cx="22" cy="0" rx="15" ry="9" fill="#334155" />
+        <!-- Head -->
+        <ellipse cx="34" cy="-2" rx="7" ry="5" fill="#1e293b" />
+        <!-- Horns (Curved) -->
+        <path d="M 32,-5 Q 28,-14 20,-11" stroke="#f1f5f9" stroke-width="2.5" stroke-linecap="round" fill="none" />
+        <path d="M 36,-5 Q 40,-13 46,-10" stroke="#f1f5f9" stroke-width="2.5" stroke-linecap="round" fill="none" />
+        <!-- Legs -->
+        <line x1="12" y1="6" x2="10" y2="15" stroke="#1e293b" stroke-width="3" stroke-linecap="round" />
+        <line x1="17" y1="6" x2="16" y2="15" stroke="#1e293b" stroke-width="3" stroke-linecap="round" />
+        <line x1="28" y1="6" x2="27" y2="15" stroke="#1e293b" stroke-width="3" stroke-linecap="round" />
+        <line x1="33" y1="6" x2="34" y2="15" stroke="#1e293b" stroke-width="3" stroke-linecap="round" />
+        <!-- Tail -->
+        <path d="M 8,-2 Q 4,5 6,10" stroke="#1e293b" stroke-width="1.5" fill="none" />
+
+        <!-- Wooden Plow (Araro) -->
+        <path d="M 12,2 L -8,12 L -6,15 L -2,12 L 20,4" stroke="#78350f" stroke-width="2" fill="none" />
+        <!-- Plowshare in dirt -->
+        <polygon points="-9,11 -13,16 -7,16" fill="#475569" />
+
+        <!-- Farmer (Magsasaka) -->
+        <!-- Legs -->
+        <line x1="-16" y1="2" x2="-18" y2="14" stroke="#0369a1" stroke-width="3" stroke-linecap="round" />
+        <line x1="-12" y1="2" x2="-10" y2="14" stroke="#0369a1" stroke-width="3" stroke-linecap="round" />
+        <!-- Torso in traditional blue kamisa -->
+        <path d="M -18,-6 L -10,-6 L -8,3 L -20,3 Z" fill="#0284c7" />
+        <!-- Arms holding plow handle -->
+        <line x1="-16" y1="-3" x2="-7" y2="8" stroke="#ea580c" stroke-width="2.5" stroke-linecap="round" />
+        <!-- Head -->
+        <circle cx="-14" cy="-9" r="3.5" fill="#ea580c" />
+        <!-- Native Salakot Straw Hat (Conical) -->
+        <polygon points="-22,-10 -14,-17 -6,-10" fill="#fef08a" stroke="#ca8a04" stroke-width="1" />
+      </g>
+    </g>
+  </g>
+</svg>
