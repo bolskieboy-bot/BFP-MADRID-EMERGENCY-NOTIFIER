@@ -15,6 +15,8 @@ import {
   Sparkles,
   Inbox,
   Shield,
+  Settings,
+  VolumeX,
 } from 'lucide-react';
 import {
   IncidentCategory,
@@ -34,6 +36,7 @@ import {
 } from '../../services/audioService';
 import LeafletEmergencyMap from '../Map/LeafletEmergencyMap';
 import BfpMadridLogo from '../Common/BfpMadridLogo';
+import AppDetailsEditor from './AppDetailsEditor';
 
 interface AdminDashboardProps {
   currentUser: UserProfile | null;
@@ -107,8 +110,8 @@ export default function AdminDashboard({
   isAlarmActive,
   onStopAlarmByResponder,
 }: AdminDashboardProps) {
-  // 3 TABS: 'photos' (current active reported photos only), 'map' (realtime map), 'history' (all resolved cases)
-  const [activeTab, setActiveTab] = useState<'photos' | 'map' | 'history'>('photos');
+  // 4 TABS: 'photos' (current active reported photos only), 'map' (realtime map), 'history' (all resolved cases), 'app_details' (edit app details by Admin1 & Admin2)
+  const [activeTab, setActiveTab] = useState<'photos' | 'map' | 'history' | 'app_details'>('photos');
 
   // ONLY CURRENT REPORTED PHOTOS (Active and NOT resolved)
   const activePhotoReports = reports.filter(
@@ -215,12 +218,30 @@ export default function AdminDashboard({
 
     const smsMessage = `[MADRID EMERGENCY] Ref: ${updated.incidentNumber}. Station admin identified your report as ${identCategory.toUpperCase()} (${identSubcategory}). Unit ${assignedUnit.name} has been dispatched to ${updated.location.streetAddress || updated.location.barangay}.`;
     recordAdminSmsToCitizen(updated.reporterPhone, updated.reporterName, smsMessage);
+
+    // AUTOMATIC ALARM TURN OFF ON ADMIN ACTION:
+    // User requirement: "and when there is an action taken by the admin automatic the alarm will turn off."
+    if (onStopAlarmByResponder) {
+      onStopAlarmByResponder('Automatic Turn Off: Admin classified hazard & dispatched unit');
+    } else {
+      stopContinuousStationAlarm();
+      stopAllAlarmSounds();
+    }
   };
 
   const handleStatusChange = (newStatus: IncidentStatus, defaultNote?: string) => {
     if (!currentReport) return;
 
     playRadioDispatchChime();
+
+    // AUTOMATIC ALARM TURN OFF ON ADMIN ACTION:
+    // User requirement: "and when there is an action taken by the admin automatic the alarm will turn off."
+    if (onStopAlarmByResponder) {
+      onStopAlarmByResponder(`Automatic Turn Off: Admin updated status to ${newStatus}`);
+    } else {
+      stopContinuousStationAlarm();
+      stopAllAlarmSounds();
+    }
 
     const note = defaultNote || `Status updated to ${newStatus.replace('_', ' ')}`;
     const updatedHistory = [
@@ -289,6 +310,14 @@ export default function AdminDashboard({
     onUpdateReport(updated);
     setSelectedReportId(updated.id);
     setActiveTab('photos');
+
+    // AUTOMATIC ALARM TURN OFF ON ADMIN ACTION
+    if (onStopAlarmByResponder) {
+      onStopAlarmByResponder('Automatic Turn Off: Admin reopened report');
+    } else {
+      stopContinuousStationAlarm();
+      stopAllAlarmSounds();
+    }
   };
 
   const handleSendCustomSms = (e: React.FormEvent) => {
@@ -299,12 +328,20 @@ export default function AdminDashboard({
     setSmsReplyText('');
     setSmsSuccessNotice(`SMS sent to ${currentReport.reporterPhone}`);
     setTimeout(() => setSmsSuccessNotice(null), 3000);
+
+    // AUTOMATIC ALARM TURN OFF ON ADMIN ACTION
+    if (onStopAlarmByResponder) {
+      onStopAlarmByResponder('Automatic Turn Off: Admin sent SMS to citizen');
+    } else {
+      stopContinuousStationAlarm();
+      stopAllAlarmSounds();
+    }
   };
 
   const isPhotoIdentPending = currentReport && (!currentReport.isIdentified || currentReport.category === 'unidentified');
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-950 text-slate-100">
+    <div className="relative z-10 flex-1 flex flex-col h-full overflow-hidden bg-slate-950/75 backdrop-blur-[2px] text-slate-100">
       {/* ACTIVE CONTINUOUS STATION SIREN ALARM BAR - ONLY BFP OR MDRRMO CAN STOP */}
       {isAlarmActive && (
         <div className="bg-rose-700 border-b-2 border-amber-300 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 shadow-2xl animate-pulse z-20">
@@ -324,6 +361,24 @@ export default function AdminDashboard({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Primary prominent button: TURN OFF Siren */}
+            <button
+              type="button"
+              onClick={() => {
+                if (onStopAlarmByResponder) {
+                  onStopAlarmByResponder('TURN OFF Siren Button');
+                } else {
+                  stopContinuousStationAlarm();
+                  stopAllAlarmSounds();
+                }
+              }}
+              className="py-1.5 px-3.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg active:scale-95 transition ring-2 ring-amber-200"
+              title="TURN OFF Siren and stop station alarm immediately"
+            >
+              <VolumeX className="w-4 h-4" />
+              <span>TURN OFF Siren</span>
+            </button>
+
             <button
               type="button"
               onClick={() => {
@@ -331,11 +386,12 @@ export default function AdminDashboard({
                   onStopAlarmByResponder('BFP Madrid Station Commander');
                 } else {
                   stopContinuousStationAlarm();
+                  stopAllAlarmSounds();
                 }
               }}
               className="py-1.5 px-3 rounded-xl bg-white text-rose-700 hover:bg-rose-100 font-bold text-xs flex items-center gap-1 shadow-lg active:scale-95 transition"
             >
-              <span>🚒 Stop Alarm as BFP</span>
+              <span>🚒 Stop as BFP</span>
             </button>
 
             <button
@@ -345,11 +401,12 @@ export default function AdminDashboard({
                   onStopAlarmByResponder('MDRRMO Operations Chief');
                 } else {
                   stopContinuousStationAlarm();
+                  stopAllAlarmSounds();
                 }
               }}
               className="py-1.5 px-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs flex items-center gap-1 shadow-lg active:scale-95 transition"
             >
-              <span>🚑 Stop Alarm as MDRRMO</span>
+              <span>🚑 Stop as MDRRMO</span>
             </button>
           </div>
         </div>
@@ -409,31 +466,62 @@ export default function AdminDashboard({
               {resolvedReports.length}
             </span>
           </button>
+
+          {/* TAB 4: Edit App Details (Admin1 & Admin2) */}
+          <button
+            onClick={() => setActiveTab('app_details')}
+            className={`px-3 sm:px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition ${
+              activeTab === 'app_details'
+                ? 'bg-amber-600 text-white shadow-lg shadow-amber-950/60'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            <Settings className="w-4 h-4" />
+            <span>App Details</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Always accessible TURN OFF Siren button in Admin header toolbar */}
+          <button
+            type="button"
+            onClick={() => {
+              if (onStopAlarmByResponder) {
+                onStopAlarmByResponder('TURN OFF Siren Button');
+              } else {
+                stopContinuousStationAlarm();
+                stopAllAlarmSounds();
+              }
+            }}
+            className={`py-1.5 px-3 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1.5 transition shadow active:scale-95 ${
+              isAlarmActive
+                ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 ring-2 ring-amber-300 animate-pulse'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+            }`}
+            title="TURN OFF Siren (Stops active emergency alarm)"
+          >
+            <VolumeX className="w-3.5 h-3.5" />
+            <span>TURN OFF Siren</span>
+          </button>
+
           <button
             type="button"
             onClick={() => playAlarmingStationSiren(6)}
-            className="py-1.5 px-3 rounded-xl bg-rose-600/30 hover:bg-rose-600 text-rose-200 hover:text-white border border-rose-500/50 text-xs font-bold flex items-center gap-1.5 transition shadow"
-            title="Sound BFP & MDRRMO Emergency Station Siren"
+            className="py-1.5 px-2.5 rounded-xl bg-rose-600/30 hover:bg-rose-600 text-rose-200 hover:text-white border border-rose-500/50 text-xs font-bold flex items-center gap-1.5 transition shadow"
+            title="Sound BFP & MDRRMO Emergency Station Siren (Test)"
           >
             <Volume2 className="w-3.5 h-3.5 text-rose-400" />
-            <span className="hidden sm:inline">Station Siren</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => stopAllAlarmSounds()}
-            className="py-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs"
-            title="Silence active siren"
-          >
-            Mute
+            <span className="hidden md:inline">Test Siren</span>
           </button>
 
-          <div className="flex items-center gap-1.5 text-xs text-slate-400 hidden sm:flex">
+          <div className="flex items-center gap-2 text-xs text-slate-400 hidden sm:flex">
             <BfpMadridLogo size="xs" />
             <span>
               Dispatcher: <strong className="text-amber-400">{currentUser?.username || 'Admin'}</strong>
+            </span>
+            <span className="text-slate-600">&bull;</span>
+            <span className="text-[11px] text-amber-300/80 font-medium">
+              Build by <strong className="text-slate-200">FO1 Evangelio</strong> (Sep 23, 2026)
             </span>
           </div>
         </div>
@@ -1027,6 +1115,11 @@ export default function AdminDashboard({
             </>
           )}
         </div>
+      )}
+
+      {/* TAB 4 BODY: APP DETAILS EDITOR */}
+      {activeTab === 'app_details' && (
+        <AppDetailsEditor currentUser={currentUser} />
       )}
 
       {/* Full Photo Modal */}

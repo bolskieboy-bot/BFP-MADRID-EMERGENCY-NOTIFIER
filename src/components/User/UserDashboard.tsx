@@ -15,6 +15,7 @@ import {
   Shield,
   Flame,
   Check,
+  Info,
 } from 'lucide-react';
 import { IncidentReport, UserProfile, ResponderUnit } from '../../types';
 import { MADRID_CENTER, calculateDistanceKm, estimateEmergencyEta } from '../../constants/madridLocations';
@@ -28,10 +29,12 @@ import {
   OFFICIAL_MADRID_HOTLINES,
 } from '../../services/smsService';
 import { autoIdentifyEmergencyFromPhoto, AutoIdentifiedHelp } from '../../services/aiTriageService';
-import { saveReport, queueOfflineReport, addNotification } from '../../services/storageService';
-import { playRadioDispatchChime, playAlarmingStationSiren } from '../../services/audioService';
+import { saveReport, queueOfflineReport, addNotification, getAppDetailsConfig } from '../../services/storageService';
+import { playCitizenGentleConfirmation } from '../../services/audioService';
+import { compressImageFile, compressDataUrl } from '../../utils/imageCompressor';
 import LeafletEmergencyMap from '../Map/LeafletEmergencyMap';
 import BfpMadridLogo from '../Common/BfpMadridLogo';
+import AppInfoModal from '../Common/AppInfoModal';
 
 interface UserDashboardProps {
   currentUser: UserProfile | null;
@@ -86,6 +89,8 @@ export default function UserDashboard({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [lastSubmittedReport, setLastSubmittedReport] = useState<IncidentReport | null>(null);
+  const [isAppInfoOpen, setIsAppInfoOpen] = useState(false);
+  const appConfig = getAppDetailsConfig();
 
   // Auto-identified address
   const [identifiedAddress, setIdentifiedAddress] = useState<IdentifiedAddress | null>(null);
@@ -152,20 +157,23 @@ export default function UserDashboard({
     };
   }, [photoDataUrl, photoCaption, identifiedAddress?.barangay]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setErrorMsg(null);
-    const reader = new FileReader();
-    reader.onload = () => {
-      setPhotoDataUrl(reader.result as string);
-      setPhotoCaption(file.name);
-    };
-    reader.onerror = () => {
+    try {
+      // Compress phone camera/gallery photo to prevent localStorage QuotaExceededError
+      const compressed = await compressImageFile(file, 900, 0.65);
+      if (compressed) {
+        setPhotoDataUrl(compressed);
+        setPhotoCaption(file.name);
+      } else {
+        setErrorMsg('Could not process that photo. Please try another.');
+      }
+    } catch {
       setErrorMsg('Could not load that photo. Please try another.');
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
   const handleSelectPreset = (preset: { title: string; url: string; desc: string }) => {
@@ -185,8 +193,11 @@ export default function UserDashboard({
     setErrorMsg(null);
 
     try {
-      // VERY ALARMING SOUND: Automatically notify BFP and MDRRMO
-      playAlarmingStationSiren(5);
+      // Citizen cellphone: NO ALARM SOUNDS! Reassuring gentle confirmation chime only.
+      playCitizenGentleConfirmation();
+
+      // Ensure photo dataUrl is compressed
+      const finalPhotoUrl = await compressDataUrl(photoDataUrl, 900, 0.65);
 
       const stationLat = 9.2628;
       const stationLng = 125.9602;
@@ -234,7 +245,7 @@ export default function UserDashboard({
         photos: [
           {
             id: 'photo-' + Date.now(),
-            dataUrl: photoDataUrl,
+            dataUrl: finalPhotoUrl,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             caption: photoCaption || autoIdentifiedHelp?.subcategory || 'Incident Photo',
             aiSceneAssessment: autoIdentifiedHelp?.explanation,
@@ -299,7 +310,7 @@ export default function UserDashboard({
   );
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-950 text-slate-100">
+    <div className="relative z-10 flex-1 flex flex-col h-full overflow-hidden bg-slate-950/70 backdrop-blur-[2px] text-slate-100">
       {/* 2 SIMPLE TABS ONLY: Report Photo & Map */}
       <div className="bg-slate-900 border-b border-slate-800 px-3 sm:px-4 py-2 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
@@ -681,6 +692,35 @@ export default function UserDashboard({
               </div>
             </div>
           )}
+
+          {/* App Details & Developer Credit Footer Card */}
+          <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-3">
+              <BfpMadridLogo size="sm" />
+              <div>
+                <div className="font-bold text-white uppercase text-[11px]">
+                  {appConfig.appName || 'BFP MADRID EMERGENCY NOTIFIER'}
+                </div>
+                <div className="text-[10px] text-amber-400 font-semibold flex items-center gap-1.5 mt-0.5">
+                  <span>Build by <strong className="text-white">{appConfig.builtBy || 'FO1 Evangelio'}</strong></span>
+                  <span>&bull;</span>
+                  <span>{appConfig.buildDate || 'September 23, 2026'}</span>
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  {appConfig.stationName} &bull; Surigao del Sur
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsAppInfoOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[11px] font-bold transition flex items-center gap-1.5"
+            >
+              <Info className="w-3.5 h-3.5 text-amber-400" />
+              <span>App Details</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -699,6 +739,9 @@ export default function UserDashboard({
           />
         </div>
       )}
+
+      {/* App Details & Developer Build Credits Modal */}
+      <AppInfoModal isOpen={isAppInfoOpen} onClose={() => setIsAppInfoOpen(false)} />
     </div>
   );
 }

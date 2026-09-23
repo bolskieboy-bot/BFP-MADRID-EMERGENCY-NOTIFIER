@@ -3,7 +3,7 @@ import { UserProfile, StoredAccount } from '../types';
 export const SEEDED_ACCOUNTS: StoredAccount[] = [
   {
     username: 'Admin1',
-    password: 'admin',
+    password: '1234567',
     profile: {
       id: 'usr-admin-1',
       username: 'Admin1',
@@ -19,7 +19,7 @@ export const SEEDED_ACCOUNTS: StoredAccount[] = [
   },
   {
     username: 'Admin2',
-    password: 'admin',
+    password: '1234567',
     profile: {
       id: 'usr-admin-2',
       username: 'Admin2',
@@ -61,6 +61,17 @@ export function getTotalRegisteredCount(): number {
   return getAllAccounts().length;
 }
 
+export const MAX_CITIZEN_ACCOUNTS = 500;
+
+export function getAccountCapacity(): { current: number; max: number; available: number } {
+  const current = getRegisteredCustomAccounts().length;
+  return {
+    current,
+    max: MAX_CITIZEN_ACCOUNTS,
+    available: Math.max(0, MAX_CITIZEN_ACCOUNTS - current),
+  };
+}
+
 // Authenticate account by username (case-insensitive) or mobile number
 export function authenticateAccount(
   identifier: string,
@@ -80,7 +91,7 @@ export function authenticateAccount(
   if (!match) {
     return {
       success: false,
-      error: 'Account not found. Please register first if you are a new user, or check your username/mobile number.',
+      error: 'Account not found. Please register first if you are a new citizen, or check your username/mobile number.',
     };
   }
 
@@ -115,6 +126,15 @@ export function registerNewCitizenAccount(data: {
     };
   }
 
+  // Strictly reserve admin usernames so nobody can hijack admin slots
+  const reservedUsernames = ['admin', 'admin1', 'admin2', 'administrator', 'bfpadmin', 'dispatcher', 'commander'];
+  if (reservedUsernames.includes(cleanUsername.toLowerCase())) {
+    return {
+      success: false,
+      error: 'This username is reserved for municipal administration.',
+    };
+  }
+
   if (!data.password || data.password.length < 3) {
     return {
       success: false,
@@ -133,6 +153,15 @@ export function registerNewCitizenAccount(data: {
     return {
       success: false,
       error: 'Please enter a valid 11-digit Philippine mobile phone number.',
+    };
+  }
+
+  // Check 500 account registration capacity
+  const currentCustom = getRegisteredCustomAccounts();
+  if (currentCustom.length >= MAX_CITIZEN_ACCOUNTS) {
+    return {
+      success: false,
+      error: `Registration capacity reached (${MAX_CITIZEN_ACCOUNTS} accounts maximum). Please contact Madrid Municipal Fire Station.`,
     };
   }
 
@@ -170,7 +199,6 @@ export function registerNewCitizenAccount(data: {
     profile: newUserProfile,
   };
 
-  const currentCustom = getRegisteredCustomAccounts();
   currentCustom.push(newAccount);
   localStorage.setItem(STORAGE_KEYS.REGISTERED_ACCOUNTS, JSON.stringify(currentCustom));
 

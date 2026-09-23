@@ -1,4 +1,4 @@
-import { IncidentReport, UserProfile, PushNotificationItem, ResponderUnit } from '../types';
+import { IncidentReport, UserProfile, PushNotificationItem, ResponderUnit, AppDetailsConfig } from '../types';
 import { INITIAL_RESPONDER_UNITS } from '../constants/madridLocations';
 import { getTotalRegisteredCount } from './accountService';
 
@@ -10,6 +10,8 @@ const STORAGE_KEYS = {
   RESPONDER_UNITS: 'madrid_responder_units',
   BETA_USER_COUNT: 'madrid_beta_user_count',
   THEME_MODE: 'madrid_theme_mode',
+  APP_DETAILS: 'madrid_app_details_config',
+  PENDING_DISTURBING_ALARM: 'bfp_madrid_pending_disturbing_alarm',
 };
 
 // Initial realistic Madrid, Surigao del Sur incident sample
@@ -136,14 +138,86 @@ const SEED_REPORTS: IncidentReport[] = [
   },
 ];
 
+// Helper to strip or compress photos for older reports when localStorage quota is tight
+function cleanReportPhotosForStorage(report: IncidentReport, retainPhoto = true): IncidentReport {
+  if (!report.photos || report.photos.length === 0) return report;
+  if (retainPhoto) {
+    return report;
+  }
+  // For older historical reports, replace heavy base64 data URLs with a lightweight placeholder
+  const compactPhotos = report.photos.map((p) => {
+    if (p.dataUrl && p.dataUrl.startsWith('data:image') && p.dataUrl.length > 30000) {
+      return {
+        ...p,
+        dataUrl: 'https://images.unsplash.com/photo-1542385151-efd9000785a0?auto=format&fit=crop&w=400&q=70',
+      };
+    }
+    return p;
+  });
+  return {
+    ...report,
+    photos: compactPhotos,
+  };
+}
+
+// Resilient save reports to localStorage that prevents QuotaExceededError
+export function saveReportsToStorage(reports: IncidentReport[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.REPORTS, JSON.stringify(reports));
+  } catch (quotaError) {
+    console.warn('[Storage] Quota exceeded on madrid_incident_reports. Compacting storage...', quotaError);
+
+    // Tier 1: Keep photos only for the 5 most recent reports
+    try {
+      const compactedTier1 = reports.map((rep, idx) => cleanReportPhotosForStorage(rep, idx < 5));
+      localStorage.setItem(STORAGE_KEYS.REPORTS, JSON.stringify(compactedTier1));
+      return;
+    } catch {
+      // Continue to Tier 2
+    }
+
+    // Tier 2: Limit to the most recent 25 reports and keep only top 2 photos
+    try {
+      const compactedTier2 = reports.slice(0, 25).map((rep, idx) => cleanReportPhotosForStorage(rep, idx < 2));
+      localStorage.setItem(STORAGE_KEYS.REPORTS, JSON.stringify(compactedTier2));
+      return;
+    } catch {
+      // Continue to Tier 3
+    }
+
+    // Tier 3: Emergency fallback - keep latest 15 reports with all heavy photos replaced
+    try {
+      const compactedTier3 = reports.slice(0, 15).map((rep) => cleanReportPhotosForStorage(rep, false));
+      localStorage.setItem(STORAGE_KEYS.REPORTS, JSON.stringify(compactedTier3));
+    } catch (finalError) {
+      console.error('[Storage] Critical: Unable to save reports to localStorage after compaction', finalError);
+    }
+  }
+}
+
 export function getStoredReports(): IncidentReport[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.REPORTS);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.REPORTS, JSON.stringify(SEED_REPORTS));
+      saveReportsToStorage(SEED_REPORTS);
       return SEED_REPORTS;
     }
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return SEED_REPORTS;
+
+    // Check if storage has bloated base64 strings (> 150KB) and compact proactively
+    let hasOverlargePhotos = false;
+    for (const r of parsed) {
+      if (r.photos?.some((p: any) => p?.dataUrl && p.dataUrl.length > 120000)) {
+        hasOverlargePhotos = true;
+        break;
+      }
+    }
+    if (hasOverlargePhotos) {
+      saveReportsToStorage(parsed);
+    }
+
+    return parsed;
   } catch {
     return SEED_REPORTS;
   }
@@ -157,7 +231,7 @@ export function saveReport(report: IncidentReport): void {
   } else {
     reports.unshift(report);
   }
-  localStorage.setItem(STORAGE_KEYS.REPORTS, JSON.stringify(reports));
+  saveReportsToStorage(reports);
 }
 
 export function getOfflineQueue(): IncidentReport[] {
@@ -172,12 +246,25 @@ export function getOfflineQueue(): IncidentReport[] {
 export function queueOfflineReport(report: IncidentReport): void {
   const queue = getOfflineQueue();
   queue.push({ ...report, isOfflineQueued: true });
-  localStorage.setItem(STORAGE_KEYS.OFFLINE_QUEUE, JSON.stringify(queue));
+  try {
+    localStorage.setItem(STORAGE_KEYS.OFFLINE_QUEUE, JSON.stringify(queue));
+  } catch {
+    try {
+      const compactedQueue = queue.slice(-5).map((r) => cleanReportPhotosForStorage(r, false));
+      localStorage.setItem(STORAGE_KEYS.OFFLINE_QUEUE, JSON.stringify(compactedQueue));
+    } catch {
+      // Ignore queue error if quota is totally exhausted
+    }
+  }
 }
 
 export function clearOfflineQueue(): IncidentReport[] {
   const queue = getOfflineQueue();
-  localStorage.removeItem(STORAGE_KEYS.OFFLINE_QUEUE);
+  try {
+    localStorage.removeItem(STORAGE_KEYS.OFFLINE_QUEUE);
+  } catch {
+    // Ignore
+  }
   return queue;
 }
 
@@ -283,3 +370,108 @@ export function addNotification(item: Omit<PushNotificationItem, 'id' | 'read' |
   saveNotifications(list.slice(0, 30));
   return newItem;
 }
+
+export const DEFAULT_APP_DETAILS: AppDetailsConfig = {
+  appName: 'BFP MADRID EMERGENCY NOTIFIER',
+  stationName: 'Madrid Municipal Fire Station',
+  stationCommander: 'SFO4 Roberto S. Alcantara (Station Commander)',
+  operationsChief: 'FO3 Maria Elena V. Morales (Operations Chief)',
+  stationAddress: 'National Highway, Brgy. Linungao (Poblacion), Madrid, Surigao del Sur',
+  bfpHotline: '0931-7218-765',
+  mdrmoHotline: '0998-552-1911',
+  pnpHotline: '0998-598-7341',
+  rhuAmbulanceHotline: '0917-819-2371',
+  publicAdvisory: 'BFP Madrid High Alert: Prompt reporting saves lives and property. Ensure clearance near electrical posts and hydrant points.',
+  emergencySirenEnabled: true,
+  disturbingAlarmEnabled: true,
+  builtBy: 'FO1 Evangelio',
+  buildDate: 'September 23, 2026',
+  appVersion: 'v2.4.0 (Madrid Municipal BFP Dispatch Standard)',
+  lastUpdatedBy: 'Admin1',
+  lastUpdatedAt: new Date().toISOString(),
+};
+
+export function getAppDetailsConfig(): AppDetailsConfig {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.APP_DETAILS);
+    if (!raw) return DEFAULT_APP_DETAILS;
+    const parsed = JSON.parse(raw);
+    return {
+      ...DEFAULT_APP_DETAILS,
+      ...parsed,
+      builtBy: parsed.builtBy || DEFAULT_APP_DETAILS.builtBy,
+      buildDate: parsed.buildDate || DEFAULT_APP_DETAILS.buildDate,
+      appVersion: parsed.appVersion || DEFAULT_APP_DETAILS.appVersion,
+    };
+  } catch {
+    return DEFAULT_APP_DETAILS;
+  }
+}
+
+export function saveAppDetailsConfig(updates: Partial<AppDetailsConfig>, adminUser: string): AppDetailsConfig {
+  const current = getAppDetailsConfig();
+  const updated: AppDetailsConfig = {
+    ...current,
+    ...updates,
+    lastUpdatedBy: adminUser,
+    lastUpdatedAt: new Date().toISOString(),
+  };
+  localStorage.setItem(STORAGE_KEYS.APP_DETAILS, JSON.stringify(updated));
+
+  try {
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      const channel = new BroadcastChannel('bfp_madrid_emergency_channel');
+      channel.postMessage({ type: 'APP_DETAILS_UPDATED', config: updated });
+    }
+  } catch {
+    // Ignore
+  }
+
+  return updated;
+}
+
+export interface PendingDisturbingAlarm {
+  id: string;
+  incidentNumber: string;
+  location: string;
+  timestamp: number;
+  acknowledged: boolean;
+}
+
+export function setPendingDisturbingAlarm(details: { id: string; incidentNumber: string; location: string }): void {
+  try {
+    const data: PendingDisturbingAlarm = {
+      ...details,
+      timestamp: Date.now(),
+      acknowledged: false,
+    };
+    localStorage.setItem(STORAGE_KEYS.PENDING_DISTURBING_ALARM, JSON.stringify(data));
+  } catch {
+    // Ignore
+  }
+}
+
+export function getPendingDisturbingAlarm(): PendingDisturbingAlarm | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.PENDING_DISTURBING_ALARM);
+    if (!raw) return null;
+    const parsed: PendingDisturbingAlarm = JSON.parse(raw);
+    // Ignore if older than 4 hours
+    if (Date.now() - parsed.timestamp > 4 * 60 * 60 * 1000) {
+      clearPendingDisturbingAlarm();
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function clearPendingDisturbingAlarm(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEYS.PENDING_DISTURBING_ALARM);
+  } catch {
+    // Ignore
+  }
+}
+

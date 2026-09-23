@@ -24,6 +24,7 @@ import {
   getTotalRegisteredCount,
 } from '../../services/accountService';
 import BfpMadridLogo from '../Common/BfpMadridLogo';
+import AppBackground from '../Common/AppBackground';
 
 interface AuthGateProps {
   onLoginSuccess: (user: UserProfile) => void;
@@ -52,13 +53,6 @@ export default function AuthGate({ onLoginSuccess, onOpenHotlines }: AuthGatePro
   const [regError, setRegError] = useState<string | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Quick fill helper for Admin1 and Admin2
-  const handleQuickAdminSelect = (adminUser: 'Admin1' | 'Admin2') => {
-    setLoginIdentifier(adminUser);
-    setLoginPassword('admin');
-    setLoginError(null);
-  };
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,11 +130,8 @@ export default function AuthGate({ onLoginSuccess, onOpenHotlines }: AuthGatePro
 
   return (
     <div className="min-h-screen w-full bg-slate-950 text-slate-100 flex flex-col justify-between relative overflow-x-hidden selection:bg-rose-500 selection:text-white">
-      {/* Background radial ambiance */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[450px] bg-gradient-to-b from-rose-900/35 via-rose-950/15 to-transparent rounded-full blur-3xl"></div>
-        <div className="absolute bottom-0 right-0 w-[400px] h-[300px] bg-amber-900/20 rounded-full blur-3xl"></div>
-      </div>
+      {/* Background Graphic from User Uploaded Poster */}
+      <AppBackground dimAmount="medium" opacity={0.65} />
 
       {/* Main Container */}
       <div className="relative z-10 max-w-xl mx-auto w-full px-4 py-6 sm:py-10 flex-1 flex flex-col justify-center">
@@ -165,7 +156,7 @@ export default function AuthGate({ onLoginSuccess, onOpenHotlines }: AuthGatePro
           {/* Official Gate Notice */}
           <div className="mt-3 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/90 border border-slate-700/80 text-[11px] text-slate-300 shadow-md">
             <Shield className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Official Emergency Portal &bull; Registration Required</span>
+            <span>Official Emergency Portal &bull; Up to 500 Accounts &bull; Registration Required</span>
           </div>
         </div>
 
@@ -226,7 +217,7 @@ export default function AuthGate({ onLoginSuccess, onOpenHotlines }: AuthGatePro
                     type="text"
                     value={loginIdentifier}
                     onChange={(e) => setLoginIdentifier(e.target.value)}
-                    placeholder="Enter Admin1, Admin2, or your registered mobile"
+                    placeholder="Enter username or registered mobile (09XXXXXXXXX)"
                     className="w-full pl-10 pr-4 py-3 rounded-2xl bg-slate-950 border border-slate-700/80 text-white text-sm focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 transition"
                     autoComplete="username"
                     required
@@ -244,7 +235,7 @@ export default function AuthGate({ onLoginSuccess, onOpenHotlines }: AuthGatePro
                     type={showLoginPassword ? 'text' : 'password'}
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
-                    placeholder="Enter password (admin for Admins)"
+                    placeholder="Enter your account password"
                     className="w-full pl-10 pr-10 py-3 rounded-2xl bg-slate-950 border border-slate-700/80 text-white text-sm focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 transition"
                     autoComplete="current-password"
                     required
@@ -255,43 +246,6 @@ export default function AuthGate({ onLoginSuccess, onOpenHotlines }: AuthGatePro
                     className="absolute right-3.5 top-3.5 text-slate-400 hover:text-white transition"
                   >
                     {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Station Responders Quick Logins */}
-              <div className="pt-1 pb-1">
-                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
-                  <span>Station Responders / Dispatchers</span>
-                  <span className="text-amber-400 text-[10px]">Password: admin</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleQuickAdminSelect('Admin1')}
-                    className="p-2.5 rounded-xl border border-slate-800 bg-slate-950 hover:border-rose-500 hover:bg-slate-900 text-left transition flex items-center gap-2 group"
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-rose-600/20 border border-rose-500/40 text-rose-400 flex items-center justify-center font-bold text-xs">
-                      A1
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-white group-hover:text-rose-400">Admin1</div>
-                      <div className="text-[10px] text-slate-400">BFP Commander</div>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleQuickAdminSelect('Admin2')}
-                    className="p-2.5 rounded-xl border border-slate-800 bg-slate-950 hover:border-amber-500 hover:bg-slate-900 text-left transition flex items-center gap-2 group"
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-amber-600/20 border border-amber-500/40 text-amber-400 flex items-center justify-center font-bold text-xs">
-                      A2
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-white group-hover:text-amber-400">Admin2</div>
-                      <div className="text-[10px] text-slate-400">Operations Chief</div>
-                    </div>
                   </button>
                 </div>
               </div>

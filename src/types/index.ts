@@ -110,3 +110,23 @@ export interface PushNotificationItem {
   timestamp: string;
   read: boolean;
 }
+
+export interface AppDetailsConfig {
+  appName: string;
+  stationName: string;
+  stationCommander: string;
+  operationsChief: string;
+  stationAddress: string;
+  bfpHotline: string;
+  mdrmoHotline: string;
+  pnpHotline: string;
+  rhuAmbulanceHotline: string;
+  publicAdvisory: string;
+  emergencySirenEnabled: boolean;
+  disturbingAlarmEnabled: boolean;
+  builtBy: string;
+  buildDate: string;
+  appVersion: string;
+  lastUpdatedBy: string;
+  lastUpdatedAt: string;
+}

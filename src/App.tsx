@@ -9,6 +9,8 @@ import {
   User,
   Lock,
   LogOut,
+  Info,
+  VolumeX,
 } from 'lucide-react';
 import UserDashboard from './components/User/UserDashboard';
 import AdminDashboard from './components/Admin/AdminDashboard';
@@ -19,8 +21,16 @@ import PushNotificationsTray from './components/Common/PushNotificationsTray';
 import OfflineBanner from './components/Common/OfflineBanner';
 import AndroidPushToast from './components/Common/AndroidPushToast';
 import HotlineModal from './components/Directory/HotlineModal';
+import AppInfoModal from './components/Common/AppInfoModal';
 import BfpMadridLogo from './components/Common/BfpMadridLogo';
-import { IncidentReport, UserProfile, PushNotificationItem, ResponderUnit } from './types';
+import AppBackground from './components/Common/AppBackground';
+import {
+  IncidentReport,
+  UserProfile,
+  PushNotificationItem,
+  ResponderUnit,
+  AppDetailsConfig,
+} from './types';
 import {
   getStoredReports,
   saveReport,
@@ -31,6 +41,10 @@ import {
   getStoredNotifications,
   saveNotifications,
   getStoredResponderUnits,
+  getAppDetailsConfig,
+  setPendingDisturbingAlarm,
+  getPendingDisturbingAlarm,
+  clearPendingDisturbingAlarm,
 } from './services/storageService';
 import { SEEDED_ACCOUNTS, logoutCurrentUser } from './services/accountService';
 import {
@@ -40,6 +54,8 @@ import {
   stopContinuousStationAlarm,
   stopAllAlarmSounds,
   isStationAlarmSounding,
+  playCitizenGentleConfirmation,
+  dispatchBackgroundAdminNotification,
 } from './services/audioService';
 
 export default function App() {
@@ -51,6 +67,7 @@ export default function App() {
   const [notifications, setNotifications] = useState<PushNotificationItem[]>([]);
   const [activeToast, setActiveToast] = useState<PushNotificationItem | null>(null);
   const [activeAlarmReport, setActiveAlarmReport] = useState<IncidentReport | null>(null);
+  const [appConfig, setAppConfig] = useState<AppDetailsConfig>(() => getAppDetailsConfig());
 
   // Active Dashboard View: 'user' or 'admin'
   const [dashboardMode, setDashboardMode] = useState<'user' | 'admin'>('user');
@@ -68,6 +85,7 @@ export default function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [isNotifTrayOpen, setIsNotifTrayOpen] = useState<boolean>(false);
   const [isHotlineOpen, setIsHotlineOpen] = useState<boolean>(false);
+  const [isAppInfoOpen, setIsAppInfoOpen] = useState<boolean>(false);
 
   // GPS User Location
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -81,15 +99,44 @@ export default function App() {
       setSelectedReportId(loadedReports[0].id);
     }
 
+    // Check URL parameters (e.g. notification click when app was closed: /?adminAlarm=true)
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasAdminAlarmParam = urlParams.has('adminAlarm');
+
     // Load stored user only if valid registered user or admin, clearing out any test account
-    const stored = getStoredUserProfile();
+    let stored = getStoredUserProfile();
     if (stored && stored.username === 'sample1') {
       clearUserProfile();
+      stored = null;
       setCurrentUser(null);
     } else {
       setCurrentUser(stored);
       if (stored?.role === 'admin_dispatcher') {
         setDashboardMode('admin');
+      }
+    }
+
+    // If app was opened via background alarm notification while closed, ensure admin access
+    if (hasAdminAlarmParam && (!stored || stored.role !== 'admin_dispatcher')) {
+      const defaultAdmin = SEEDED_ACCOUNTS[0].profile;
+      setCurrentUser(defaultAdmin);
+      setDashboardMode('admin');
+      stored = defaultAdmin;
+    }
+
+    // CHECK FOR PENDING DISTURBING ALARM (Even if the app was closed when citizen reported!)
+    const pendingAlarm = getPendingDisturbingAlarm();
+    if (pendingAlarm && !pendingAlarm.acknowledged) {
+      if (stored?.role === 'admin_dispatcher' || hasAdminAlarmParam) {
+        setDashboardMode('admin');
+        startContinuousStationAlarm({
+          incidentNumber: pendingAlarm.incidentNumber,
+          location: pendingAlarm.location,
+        });
+        const matching = loadedReports.find((r) => r.incidentNumber === pendingAlarm.incidentNumber || r.id === pendingAlarm.id);
+        if (matching) {
+          setActiveAlarmReport(matching);
+        }
       }
     }
 
@@ -149,6 +196,101 @@ export default function App() {
     };
   }, []);
 
+  // Cross-tab, background alarm, and window focus synchronization
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const channel = new BroadcastChannel('bfp_madrid_emergency_channel');
+    channel.onmessage = (event) => {
+      if (event.data?.type === 'ADMIN_EMERGENCY_ALARM_TRIGGERED') {
+        const refreshed = getStoredReports();
+        setReports(refreshed);
+
+        // ONLY ADMIN ACCOUNTS ALARM!
+        if (currentUser?.role === 'admin_dispatcher') {
+          startContinuousStationAlarm(event.data.details);
+          const match = refreshed.find((r) => r.incidentNumber === event.data.details?.incidentNumber) || refreshed[0];
+          if (match) setActiveAlarmReport(match);
+        }
+      } else if (event.data?.type === 'ADMIN_ALARM_STOPPED') {
+        stopContinuousStationAlarm();
+        stopAllAlarmSounds();
+        clearPendingDisturbingAlarm();
+        setActiveAlarmReport(null);
+      } else if (event.data?.type === 'APP_DETAILS_UPDATED') {
+        const updatedConfig = getAppDetailsConfig();
+        setAppConfig(updatedConfig);
+      }
+    };
+
+    // Trigger disturbing alarm when app is brought to foreground or focused
+    const handleWakeOrFocus = () => {
+      if (document.visibilityState === 'visible' && currentUser?.role === 'admin_dispatcher') {
+        const pending = getPendingDisturbingAlarm();
+        if (pending && !pending.acknowledged) {
+          startContinuousStationAlarm(pending);
+          const currentReports = getStoredReports();
+          const match = currentReports.find((r) => r.incidentNumber === pending.incidentNumber || r.id === pending.id);
+          if (match) setActiveAlarmReport(match);
+        }
+      }
+    };
+
+    // Cross-window/cross-tab storage event: alarms all admin accounts immediately upon citizen upload
+    const handleStorageEvent = (e: StorageEvent) => {
+      if (e.key === 'madrid_pending_disturbing_alarm' && currentUser?.role === 'admin_dispatcher') {
+        const pending = getPendingDisturbingAlarm();
+        if (pending && !pending.acknowledged) {
+          startContinuousStationAlarm(pending);
+          const refreshed = getStoredReports();
+          setReports(refreshed);
+          const match = refreshed.find((r) => r.incidentNumber === pending.incidentNumber || r.id === pending.id);
+          if (match) setActiveAlarmReport(match);
+        }
+      }
+    };
+
+    // Immediately trigger disturbing alarm if an admin account logs in or mounts while an alarm is pending
+    if (currentUser?.role === 'admin_dispatcher') {
+      const pending = getPendingDisturbingAlarm();
+      if (pending && !pending.acknowledged) {
+        startContinuousStationAlarm(pending);
+        const currentReports = getStoredReports();
+        const match = currentReports.find((r) => r.incidentNumber === pending.incidentNumber || r.id === pending.id);
+        if (match) setActiveAlarmReport(match);
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleWakeOrFocus);
+    window.addEventListener('focus', handleWakeOrFocus);
+    window.addEventListener('storage', handleStorageEvent);
+
+    if ('serviceWorker' in navigator) {
+      const handleSwMessage = (event: MessageEvent) => {
+        if (event.data?.type === 'ADMIN_EMERGENCY_ALARM_TRIGGERED' || event.data?.type === 'FOCUS_ADMIN_DISPATCH') {
+          if (currentUser?.role === 'admin_dispatcher') {
+            startContinuousStationAlarm(event.data.details);
+          }
+        }
+      };
+      navigator.serviceWorker.addEventListener('message', handleSwMessage);
+      return () => {
+        channel.close();
+        document.removeEventListener('visibilitychange', handleWakeOrFocus);
+        window.removeEventListener('focus', handleWakeOrFocus);
+        window.removeEventListener('storage', handleStorageEvent);
+        navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+      };
+    }
+
+    return () => {
+      channel.close();
+      document.removeEventListener('visibilitychange', handleWakeOrFocus);
+      window.removeEventListener('focus', handleWakeOrFocus);
+      window.removeEventListener('storage', handleStorageEvent);
+    };
+  }, [currentUser]);
+
   const refreshLocation = useCallback(() => {
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -207,15 +349,39 @@ export default function App() {
     setReports((prev) => [newReport, ...prev]);
     setSelectedReportId(newReport.id);
 
-    // CONTINUOUS ALARMING SIREN: Sounds indefinitely until BFP or MDRRMO stops it!
-    startContinuousStationAlarm();
-    setActiveAlarmReport(newReport);
+    // PERSIST DISTURBING ALARM:
+    // Guarantees all admin accounts alarm even if the app was closed when citizen reported!
+    setPendingDisturbingAlarm({
+      id: newReport.id,
+      incidentNumber: newReport.incidentNumber,
+      location: newReport.location.streetAddress || newReport.location.barangay,
+    });
+
+    // CRITICAL USER REQUIREMENT:
+    // "when reporting an incident or sending a picture of incident, there should have no alarm in the citizen cellphone. only the admin accounts should alarm."
+    if (currentUser?.role === 'admin_dispatcher') {
+      startContinuousStationAlarm({
+        incidentNumber: newReport.incidentNumber,
+        location: newReport.location.streetAddress || newReport.location.barangay,
+      });
+      setActiveAlarmReport(newReport);
+    } else {
+      // Citizen cellphone: absolutely NO alarm/siren sounds.
+      // Reassuring, gentle chime only
+      playCitizenGentleConfirmation();
+
+      // Dispatch disturbing notification across background channel & service worker to notify all admin accounts
+      dispatchBackgroundAdminNotification({
+        incidentNumber: newReport.incidentNumber,
+        location: newReport.location.streetAddress || newReport.location.barangay,
+      });
+    }
 
     const newNotif: PushNotificationItem = {
       id: 'notif-' + Date.now(),
       incidentId: newReport.id,
-      title: `🚨 EMERGENCY PHOTO: ${newReport.incidentNumber}`,
-      body: `Photo reported at ${newReport.location.streetAddress || newReport.location.barangay}. BFP & MDRRMO alerted by continuous siren!`,
+      title: `📸 Emergency Photo Dispatched: ${newReport.incidentNumber}`,
+      body: `Photo submitted at ${newReport.location.streetAddress || newReport.location.barangay}. BFP & MDRRMO admins alerted.`,
       type: 'dispatch',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       read: false,
@@ -225,22 +391,25 @@ export default function App() {
     setActiveToast(newNotif);
   };
 
-  // ONLY BFP OR MDRRMO CAN STOP THE STATION ALARM
+  // TURN OFF SIREN: Stops continuous station alarm and acknowledges incident
   const handleStopAlarmByResponder = (responderTitle: string) => {
     stopContinuousStationAlarm();
-    const currentAlarm = activeAlarmReport;
-    setActiveAlarmReport(null);
+    stopAllAlarmSounds();
+    clearPendingDisturbingAlarm();
 
-    // Switch to responder profile if stopping from banner
-    if (responderTitle.toLowerCase().includes('bfp')) {
-      const bfpUser = SEEDED_ACCOUNTS.find((a) => a.username === 'Admin1')?.profile;
-      if (bfpUser) setCurrentUser(bfpUser);
-    } else if (responderTitle.toLowerCase().includes('mdrrmo')) {
-      const mdrrmoUser = SEEDED_ACCOUNTS.find((a) => a.username === 'Admin2')?.profile;
-      if (mdrrmoUser) setCurrentUser(mdrrmoUser);
+    // Broadcast silencing across tabs and devices
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        const ch = new BroadcastChannel('bfp_madrid_emergency_channel');
+        ch.postMessage({ type: 'ADMIN_ALARM_STOPPED' });
+        ch.close();
+      }
+    } catch {
+      // Ignore
     }
 
-    setDashboardMode('admin');
+    const currentAlarm = activeAlarmReport;
+    setActiveAlarmReport(null);
 
     if (currentAlarm) {
       const updatedHistory = [
@@ -248,8 +417,8 @@ export default function App() {
         {
           status: currentAlarm.status,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          note: `Continuous station alarm silenced and acknowledged by ${responderTitle}.`,
-          updatedBy: responderTitle,
+          note: `Continuous station alarm silenced and acknowledged by ${currentUser?.fullName || responderTitle}.`,
+          updatedBy: currentUser?.fullName || responderTitle,
         },
       ];
 
@@ -264,8 +433,14 @@ export default function App() {
     }
   };
 
-  // Update incident status from dispatch
+  // Update incident status from dispatch - AUTOMATICALLY TURNS OFF ALARM ON ADMIN ACTION
   const handleReportUpdated = (updated: IncidentReport) => {
+    // AUTOMATIC ALARM TURN OFF ON ADMIN ACTION:
+    // User requirement: "and when there is an action taken by the admin automatic the alarm will turn off."
+    if (activeAlarmReport || isStationAlarmSounding()) {
+      handleStopAlarmByResponder(currentUser?.fullName ? `${currentUser.fullName} Action` : 'Admin Action');
+    }
+
     setReports((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
     if (selectedReportId === updated.id) {
       setSelectedReportId(updated.id);
@@ -315,12 +490,19 @@ export default function App() {
   // If user is not authenticated, show the mandatory AuthGate (Login & Registration)
   if (!currentUser) {
     return (
-      <div className={isNightMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-900 text-slate-100'}>
+      <div className={`relative min-h-screen ${isNightMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-900 text-slate-100'}`}>
         <AuthGate
           onLoginSuccess={(user) => {
             setCurrentUser(user);
             if (user.role === 'admin_dispatcher') {
               setDashboardMode('admin');
+              const pending = getPendingDisturbingAlarm();
+              if (pending && !pending.acknowledged) {
+                startContinuousStationAlarm(pending);
+                const currentReports = getStoredReports();
+                const match = currentReports.find((r) => r.incidentNumber === pending.incidentNumber || r.id === pending.id);
+                if (match) setActiveAlarmReport(match);
+              }
             } else {
               setDashboardMode('user');
             }
@@ -338,8 +520,10 @@ export default function App() {
         isNightMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-900 text-slate-100'
       }`}
     >
-      {/* Alarming Incoming Emergency Siren Alert Banner */}
-      {activeAlarmReport && (
+      {/* Background Graphic from User Uploaded Poster */}
+      <AppBackground dimAmount="medium" opacity={dashboardMode === 'admin' ? 0.35 : 0.45} />
+      {/* Alarming Incoming Emergency Siren Alert Banner - ONLY FOR ADMINS */}
+      {currentUser?.role === 'admin_dispatcher' && activeAlarmReport && (
         <div className="relative z-50 bg-rose-600 border-b-2 border-amber-300 text-white px-3 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-2 shadow-2xl animate-pulse">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-xl bg-white text-rose-600 flex items-center justify-center font-black text-lg animate-bounce shrink-0 shadow">
@@ -359,13 +543,23 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {/* Primary prominent button: TURN OFF Siren */}
+            <button
+              onClick={() => handleStopAlarmByResponder('Turn Off Siren Button')}
+              className="py-1.5 px-3.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg active:scale-95 transition ring-2 ring-amber-200"
+              title="TURN OFF Siren and stop station alarm immediately"
+            >
+              <VolumeX className="w-4 h-4" />
+              <span>TURN OFF Siren</span>
+            </button>
+
             {/* Authorized BFP Stop Button */}
             <button
               onClick={() => handleStopAlarmByResponder('BFP Madrid Station Commander')}
               className="py-1 px-3 rounded-xl bg-white text-rose-700 hover:bg-rose-100 font-bold text-xs flex items-center gap-1 shadow transition"
               title="Stop alarm as BFP Madrid Commander"
             >
-              <span>🚒 BFP Stop Alarm</span>
+              <span>🚒 BFP Stop</span>
             </button>
 
             {/* Authorized MDRRMO Stop Button */}
@@ -374,7 +568,7 @@ export default function App() {
               className="py-1 px-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs flex items-center gap-1 shadow transition"
               title="Stop alarm as MDRRMO Operations Chief"
             >
-              <span>🚑 MDRRMO Stop Alarm</span>
+              <span>🚑 MDRRMO Stop</span>
             </button>
           </div>
         </div>
@@ -397,10 +591,10 @@ export default function App() {
 
           <div>
             <h1 className="text-sm sm:text-base font-black tracking-tight text-white uppercase flex items-center gap-1.5">
-              <span>BFP MADRID EMERGENCY NOTIFIER</span>
+              <span>{appConfig.appName || 'BFP MADRID EMERGENCY NOTIFIER'}</span>
             </h1>
             <div className="text-[10px] sm:text-[11px] text-slate-400 flex items-center gap-1.5">
-              <span className="text-rose-400 font-bold">BFP Madrid Fire Station</span>
+              <span className="text-rose-400 font-bold">{appConfig.stationName || 'BFP Madrid Fire Station'}</span>
               <span>&bull;</span>
               <span className="text-amber-400 font-bold">MDRRMO</span>
               <span>&bull;</span>
@@ -411,69 +605,59 @@ export default function App() {
 
         {/* Persona Mode Switcher & Top Actions */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Quick Dashboard Mode Toggle (Citizen vs Admin) */}
-          <div className="flex items-center bg-slate-950/90 p-1 rounded-2xl border border-slate-800">
-            <button
-              onClick={() => {
-                setDashboardMode('user');
-              }}
-              className={`py-1 px-2.5 sm:px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition ${
-                dashboardMode === 'user'
-                  ? 'bg-rose-600 text-white shadow'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-              title="User Dashboard (Upload Photo & Map)"
-            >
-              <User className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Citizen</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setDashboardMode('admin');
-                if (currentUser?.role !== 'admin_dispatcher') {
-                  handleSwitchToAdmin('Admin1');
-                }
-              }}
-              className={`py-1 px-2.5 sm:px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition ${
-                dashboardMode === 'admin'
-                  ? 'bg-amber-500 text-slate-950 shadow font-black'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-              title="Admin Dashboard (Photos Reported & Realtime Map)"
-            >
-              <Shield className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Admin</span>
-            </button>
-          </div>
-
-          {/* Quick Admin Persona Selector Dropdown if in Admin Mode */}
-          {dashboardMode === 'admin' && (
-            <div className="hidden md:flex items-center gap-1 bg-slate-950/80 px-2 py-1 rounded-xl border border-slate-800 text-[11px]">
-              <span className="text-slate-400 text-[10px]">Station:</span>
-              <button
-                onClick={() => handleSwitchToAdmin('Admin1')}
-                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                  currentUser?.username === 'Admin1'
-                    ? 'bg-amber-500 text-slate-950'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-                title="BFP Fire Station Commander"
-              >
-                Admin1 (BFP)
-              </button>
-              <button
-                onClick={() => handleSwitchToAdmin('Admin2')}
-                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                  currentUser?.username === 'Admin2'
-                    ? 'bg-amber-500 text-slate-950'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-                title="MDRRMO Rescue Officer"
-              >
-                Admin2 (MDRRMO)
-              </button>
+          {/* If citizen, show ONLY citizen profile pill - NO ADMIN CONTROLS IN CITIZEN APP */}
+          {currentUser?.role !== 'admin_dispatcher' ? (
+            <div className="flex items-center gap-1.5 bg-slate-950/80 px-2.5 py-1.5 rounded-xl border border-slate-800 text-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+              <span className="font-bold text-white max-w-[120px] truncate">{currentUser?.fullName}</span>
             </div>
+          ) : (
+            /* STRICT ADMIN CONSOLE HEADER - NO CITIZEN ACCOUNT OR CITIZEN VIEW INSIDE ADMIN */
+            <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-950/90 p-1 px-2.5 rounded-2xl border border-amber-500/30 text-xs shadow-inner">
+              <div className="flex items-center gap-1.5 text-amber-400 font-bold">
+                <Shield className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline text-amber-300">Admin Console:</span>
+                <span className="font-black text-white">{currentUser.username}</span>
+              </div>
+
+              {/* Reserved Slots for 2 Admins (Admin1 & Admin2) */}
+              <div className="flex items-center gap-1 ml-1 pl-1.5 border-l border-slate-800 text-[11px]">
+                <button
+                  onClick={() => handleSwitchToAdmin('Admin1')}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                    currentUser?.username === 'Admin1'
+                      ? 'bg-amber-500 text-slate-950 font-black shadow'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                  title="Switch to Admin1 (BFP Fire Station Commander)"
+                >
+                  Admin1 (BFP)
+                </button>
+                <button
+                  onClick={() => handleSwitchToAdmin('Admin2')}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                    currentUser?.username === 'Admin2'
+                      ? 'bg-amber-500 text-slate-950 font-black shadow'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                  title="Switch to Admin2 (MDRRMO Rescue Officer)"
+                >
+                  Admin2 (MDRRMO)
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Quick TURN OFF Siren button in Admin Header whenever alarm is active */}
+          {currentUser?.role === 'admin_dispatcher' && activeAlarmReport && (
+            <button
+              onClick={() => handleStopAlarmByResponder('Turn Off Siren (Header Button)')}
+              className="py-1 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md animate-pulse active:scale-95 transition"
+              title="TURN OFF Siren and stop alarm"
+            >
+              <VolumeX className="w-4 h-4" />
+              <span>TURN OFF Siren</span>
+            </button>
           )}
 
           {/* Direct Hotlines Modal Trigger */}
@@ -484,6 +668,16 @@ export default function App() {
           >
             <Phone className="w-4 h-4 text-emerald-400" />
             <span className="hidden lg:inline">Hotlines</span>
+          </button>
+
+          {/* App Details & Developer Credit Trigger */}
+          <button
+            onClick={() => setIsAppInfoOpen(true)}
+            className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition"
+            title="App Details & System Information (FO1 Evangelio)"
+          >
+            <Info className="w-4 h-4 text-amber-400" />
+            <span className="hidden lg:inline">App Details</span>
           </button>
 
           {/* Notifications Bell */}
@@ -543,7 +737,7 @@ export default function App() {
 
       {/* Main Viewport: Either Citizen Dashboard or Admin Dashboard */}
       <main className="relative flex-1 w-full h-full overflow-hidden flex flex-col">
-        {dashboardMode === 'user' ? (
+        {currentUser?.role !== 'admin_dispatcher' ? (
           /* USER DASHBOARD: ONLY Upload / Report Photo and Map tabs */
           <UserDashboard
             currentUser={currentUser}
@@ -628,6 +822,9 @@ export default function App() {
 
       {/* Madrid Emergency Hotlines Directory */}
       <HotlineModal isOpen={isHotlineOpen} onClose={() => setIsHotlineOpen(false)} />
+
+      {/* App Details & Developer Build Credits Modal */}
+      <AppInfoModal isOpen={isAppInfoOpen} onClose={() => setIsAppInfoOpen(false)} />
     </div>
   );
 }

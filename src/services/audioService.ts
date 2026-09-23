@@ -1,13 +1,17 @@
 /**
- * Audio and Haptic Synthesis Service for Android & Mobile Web
- * Uses Web Audio API oscillator synthesis so sound alerts always work
- * reliably without external audio downloads or network dependence.
+ * Audio, Haptic, and Notification Synthesis Service for BFP Madrid Emergency App
+ *
+ * CRITICAL POLICY:
+ * - Citizens: STRICTLY NO ALARM when reporting or sending photos. Only a reassuring, quiet confirmation chime.
+ * - Admins (Admin1 & Admin2): High-priority, piercing, disturbing emergency station siren
+ *   with intense vibration and lock-screen/background notifications even when app is closed/in background.
  */
 
 let audioCtx: AudioContext | null = null;
-let activeAlarmNodes: { osc1: OscillatorNode; osc2: OscillatorNode; gain: GainNode } | null = null;
+let activeAlarmNodes: { osc1: OscillatorNode; osc2: OscillatorNode; osc3?: OscillatorNode; gain: GainNode } | null = null;
 let continuousAlarmTimer: number | null = null;
 let isContinuousAlarmActive = false;
+let wakeLockSentinel: any = null;
 
 function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -35,10 +39,22 @@ export function stopAllAlarmSounds(): void {
       try {
         activeAlarmNodes.osc1.stop();
         activeAlarmNodes.osc2.stop();
+        activeAlarmNodes.osc3?.stop();
       } catch {
         // Ignore if already stopped
       }
       activeAlarmNodes = null;
+    }
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate(0);
+    }
+    if (wakeLockSentinel) {
+      try {
+        wakeLockSentinel.release();
+      } catch {
+        // Ignore
+      }
+      wakeLockSentinel = null;
     }
   } catch {
     // Ignore
@@ -46,45 +62,63 @@ export function stopAllAlarmSounds(): void {
 }
 
 /**
- * Plays one alarm cycle sweep (approx 2 seconds)
+ * Plays one piercing, jarring siren burst designed to awaken and immediately alert duty dispatchers
  */
-function playAlarmBurst(duration: number = 2.4): void {
+function playDisturbingAlarmBurst(duration: number = 2.4): void {
   try {
     stopAllAlarmSounds();
 
     const ctx = getAudioContext();
     if (!ctx) return;
 
+    // Severe disturbing emergency haptic vibration cadence
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      navigator.vibrate([400, 150, 400, 150, 700]);
+      navigator.vibrate([1200, 200, 1200, 200, 1600, 250, 2400]);
+    }
+
+    // Try to acquire wake lock so screen doesn't turn off during active emergency alarm
+    if (typeof navigator !== 'undefined' && 'wakeLock' in navigator && !wakeLockSentinel) {
+      try {
+        (navigator as any).wakeLock.request('screen').then((sentinel: any) => {
+          wakeLockSentinel = sentinel;
+        }).catch(() => {});
+      } catch {
+        // WakeLock optional
+      }
     }
 
     const now = ctx.currentTime;
     const endTime = now + duration;
 
-    // Primary piercing siren oscillator (sawtooth)
+    // High piercing sawtooth siren
     const osc1 = ctx.createOscillator();
     osc1.type = 'sawtooth';
 
-    // Secondary sub-harmonic klaxon oscillator (square wave)
+    // Sub-harmonic jarring square klaxon
     const osc2 = ctx.createOscillator();
     osc2.type = 'square';
 
-    const masterGain = ctx.createGain();
-    masterGain.gain.setValueAtTime(0.42, now);
+    // Discordant warning tone (tri-tone dissonance for maximum disturbance)
+    const osc3 = ctx.createOscillator();
+    osc3.type = 'sawtooth';
 
-    // Rapid piercing sweep between 850Hz and 1380Hz
-    const cycleDuration = 0.3;
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(0.55, now);
+
+    // Rapid oscillating sweep: 880Hz to 1650Hz
+    const cycleDuration = 0.28;
     let t = now;
     let isHigh = false;
 
     while (t < endTime) {
       const nextTime = Math.min(t + cycleDuration, endTime);
-      const freq1 = isHigh ? 1380 : 850;
-      const freq2 = isHigh ? 690 : 425;
+      const freq1 = isHigh ? 1650 : 880;
+      const freq2 = isHigh ? 825 : 440;
+      const freq3 = isHigh ? 1165 : 622; // Tritone / augmented 4th
 
       osc1.frequency.exponentialRampToValueAtTime(freq1, nextTime);
       osc2.frequency.exponentialRampToValueAtTime(freq2, nextTime);
+      osc3.frequency.exponentialRampToValueAtTime(freq3, nextTime);
 
       t = nextTime;
       isHigh = !isHigh;
@@ -92,15 +126,18 @@ function playAlarmBurst(duration: number = 2.4): void {
 
     osc1.connect(masterGain);
     osc2.connect(masterGain);
+    osc3.connect(masterGain);
     masterGain.connect(ctx.destination);
 
-    activeAlarmNodes = { osc1, osc2, gain: masterGain };
+    activeAlarmNodes = { osc1, osc2, osc3, gain: masterGain };
 
     osc1.start(now);
     osc2.start(now);
+    osc3.start(now);
 
     osc1.stop(endTime);
     osc2.stop(endTime);
+    osc3.stop(endTime);
 
     setTimeout(() => {
       if (activeAlarmNodes?.osc1 === osc1) {
@@ -108,7 +145,7 @@ function playAlarmBurst(duration: number = 2.4): void {
       }
     }, duration * 1000 + 50);
   } catch (e) {
-    console.warn('Alarm burst error:', e);
+    console.warn('Disturbing alarm burst error:', e);
   }
 }
 
@@ -120,25 +157,28 @@ export function isStationAlarmSounding(): boolean {
 }
 
 /**
- * Starts continuous, looping emergency station alarm siren.
- * WILL NOT STOP automatically — will continue sounding indefinitely
- * until an authorized BFP or MDRRMO responder stops it!
+ * ADMIN ONLY:
+ * Starts continuous, disturbing station alarm siren for Admin1 & Admin2.
+ * Sounds indefinitely until an admin officer stops it or acknowledges dispatch.
  */
-export function startContinuousStationAlarm(): void {
+export function startContinuousStationAlarm(reportDetails?: { incidentNumber?: string; location?: string }): void {
   if (isContinuousAlarmActive) return;
   isContinuousAlarmActive = true;
 
   // Play immediately
-  playAlarmBurst(2.4);
+  playDisturbingAlarmBurst(2.4);
 
-  // Repeat continuous loop every 2.4 seconds
+  // Trigger high-priority push notification and vibration even when app is closed / backgrounded
+  dispatchBackgroundAdminNotification(reportDetails);
+
+  // Repeat continuous disturbing alarm cycle every 2.45 seconds
   if (typeof window !== 'undefined') {
     if (continuousAlarmTimer !== null) {
       clearInterval(continuousAlarmTimer);
     }
     continuousAlarmTimer = window.setInterval(() => {
       if (isContinuousAlarmActive) {
-        playAlarmBurst(2.4);
+        playDisturbingAlarmBurst(2.4);
       } else {
         if (continuousAlarmTimer !== null) {
           clearInterval(continuousAlarmTimer);
@@ -150,7 +190,58 @@ export function startContinuousStationAlarm(): void {
 }
 
 /**
- * ONLY BFP OR MDRRMO CAN CALL THIS:
+ * Dispatches a persistent, wake-up Web Notification with severe vibration pattern.
+ * Uses Service Worker showNotification if active so it can sound even if tab is in background.
+ */
+export function dispatchBackgroundAdminNotification(details?: { incidentNumber?: string; location?: string }): void {
+  if (typeof window === 'undefined') return;
+
+  const title = `🚨 [CRITICAL DISPATCH] BFP MADRID EMERGENCY!`;
+  const body = details?.incidentNumber
+    ? `Incoming incident ${details.incidentNumber} reported at ${details.location || 'Madrid, Surigao del Sur'}! Station siren sounding!`
+    : `Emergency incident distress received! Duty dispatchers Admin1 & Admin2 respond immediately!`;
+
+  const notificationOptions: any = {
+    body,
+    icon: '/bfp-app-icon.svg',
+    badge: '/bfp-app-icon.svg',
+    tag: 'bfp-madrid-critical-alarm',
+    requireInteraction: true, // Remains on mobile screen until duty officer acknowledges!
+    renotify: true,
+    vibrate: [1200, 200, 1200, 200, 1600, 250, 2400],
+    data: { url: '/?adminAlarm=true', timestamp: Date.now() },
+  };
+
+  // Try service worker showNotification first (can alert even when app is minimized/closed)
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.ready.then((reg) => {
+      reg.showNotification(title, notificationOptions).catch(() => {});
+    }).catch(() => {});
+  } else if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification(title, notificationOptions);
+    } catch {
+      // Ignore
+    }
+  }
+
+  // Cross-tab broadcast channel
+  try {
+    if ('BroadcastChannel' in window) {
+      const channel = new BroadcastChannel('bfp_madrid_emergency_channel');
+      channel.postMessage({
+        type: 'ADMIN_EMERGENCY_ALARM_TRIGGERED',
+        details,
+        timestamp: Date.now(),
+      });
+    }
+  } catch {
+    // Ignore
+  }
+}
+
+/**
+ * ADMIN ONLY:
  * Stops the continuous alarm siren immediately.
  */
 export function stopContinuousStationAlarm(): void {
@@ -163,24 +254,25 @@ export function stopContinuousStationAlarm(): void {
 }
 
 /**
- * Single-shot alarm siren for testing or manual drills
+ * Single-shot test alarm siren for admin drills
  */
-export function playAlarmingStationSiren(durationSeconds: number = 5): void {
-  playAlarmBurst(durationSeconds);
+export function playAlarmingStationSiren(durationSeconds: number = 4): void {
+  playDisturbingAlarmBurst(durationSeconds);
 }
 
-export function playEmergencySiren(durationSeconds: number = 3): void {
-  playAlarmBurst(durationSeconds);
-}
-
-// Push notification chime
-export function playNotificationChime(): void {
+/**
+ * FOR CITIZENS ONLY:
+ * Quiet, reassuring, gentle confirmation chime when reporting or uploading photo.
+ * STRICTLY NO ALARM SIREN OR SCARY SOUNDS on citizen phones!
+ */
+export function playCitizenGentleConfirmation(): void {
   try {
     const ctx = getAudioContext();
     if (!ctx) return;
 
+    // Gentle short tactile confirmation tap (50ms)
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      navigator.vibrate([150, 75, 150]);
+      navigator.vibrate(50);
     }
 
     const now = ctx.currentTime;
@@ -188,20 +280,26 @@ export function playNotificationChime(): void {
     const gain = ctx.createGain();
 
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(587.33, now);
-    osc.frequency.exponentialRampToValueAtTime(880, now + 0.15);
+    // Friendly, smooth two-tone major chord: C5 (523Hz) to G5 (784Hz)
+    osc.frequency.setValueAtTime(523.25, now);
+    osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.15);
 
-    gain.gain.setValueAtTime(0.2, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+    gain.gain.setValueAtTime(0.12, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
 
     osc.start(now);
-    osc.stop(now + 0.5);
+    osc.stop(now + 0.45);
   } catch (e) {
-    console.warn('Chime error:', e);
+    console.warn('Citizen confirmation chime error:', e);
   }
+}
+
+// Push notification chime
+export function playNotificationChime(): void {
+  playCitizenGentleConfirmation();
 }
 
 // Radio dispatch burst for BFP responder transmission
@@ -211,7 +309,7 @@ export function playRadioDispatchChime(): void {
     if (!ctx) return;
 
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      navigator.vibrate(200);
+      navigator.vibrate(100);
     }
 
     const now = ctx.currentTime;
@@ -222,15 +320,20 @@ export function playRadioDispatchChime(): void {
     osc.frequency.setValueAtTime(1200, now);
     osc.frequency.setValueAtTime(1600, now + 0.08);
 
-    gain.gain.setValueAtTime(0.22, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
 
     osc.start(now);
-    osc.stop(now + 0.25);
+    osc.stop(now + 0.22);
   } catch {
     // Ignore
   }
 }
+
+/**
+ * Backward compatibility alias for emergency siren
+ */
+export const playEmergencySiren = playAlarmingStationSiren;

@@ -31,14 +31,13 @@ export default function BfpMadridLogo({
   const [srcIndex, setSrcIndex] = useState(0);
 
   const sources = [
+    '/bfp-app-icon.svg',
+    '/app-logo.svg',
+    '/bfp-madrid-logo.svg',
+    '/app-logo.png',
     'ChatGPT Image Sep 23, 2026, 12_48_31 PM.png',
     '/ChatGPT Image Sep 23, 2026, 12_48_31 PM.png',
-    'ChatGPT%20Image%20Sep%2023%2C%202026%2C%2012_48_31%20PM.png',
-    '/ChatGPT%20Image%20Sep%2023%2C%202026%2C%2012_48_31%20PM.png',
-    '/app-logo.png',
-    '/454013952_8124795784245983_401913935493872971_n.png',
     '/bfp-madrid-logo.png',
-    '/bfp-madrid-logo.svg',
   ];
 
   const handleError = () => {
